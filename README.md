@@ -65,7 +65,7 @@ spring.application.name=patient-service
 # Kết nối PostgreSQL (Cần tạo sẵn DB patient_db)
 spring.datasource.url=jdbc:postgresql://localhost:5432/patient_db
 spring.datasource.username=postgres
-spring.datasource.password=123456
+spring.datasource.password=admin
 spring.jpa.hibernate.ddl-auto=update
 
 # Đăng ký vào Eureka
