@@ -1,19 +1,30 @@
-# MD04_SS06_Bai2 - Patient Management Service (patient-service)
+# MD04_SS06_Bai2 - Hệ thống Microservices Y Tế (Medical Microservices System)
 
-## [Bài tập 2 - Khá] Service Quản lý Bệnh nhân (Patient-Service)
-
-### 1. Mục tiêu
-- **Kiến thức**: Hiểu cách một Microservice kết nối cơ sở dữ liệu quan hệ (PostgreSQL) thông qua Spring Data JPA và tự động đăng ký vào Service Registry (Eureka Server).
-- **Kỹ năng**: Khởi tạo project `patient-service`, cấu hình JPA PostgreSQL, triển khai Entity `Patient`, xây dựng API RESTful và đăng ký Eureka Client.
+## 📌 Tổng quan hệ thống
+Hệ thống microservices phục vụ quản lý y tế bao gồm các dịch vụ độc lập kết nối qua Service Registry (Eureka Server):
+1. **`medical-discovery-server` (Bài 1)**: Trạm điều hướng y tế - Service Registry đóng vai trò trung tâm tiếp nhận đăng ký, quản lý trạng thái các microservices tại port `8761`.
+2. **`patient-service` (Bài 2)**: Dịch vụ quản lý bệnh nhân - Kết nối PostgreSQL (`patient_db`) và tự động đăng ký làm Eureka Client tại port `8081`.
 
 ---
 
-### 2. Cấu trúc thư mục dự án
+## 🗂️ Cấu trúc thư mục dự án
 ```text
 MD04_SS06_Bai2/
 ├── .gitignore
 ├── README.md
-└── patient-service/
+├── medical-discovery-server/                 # [Bài 1] Eureka Discovery Server (Port 8761)
+│   ├── pom.xml
+│   ├── .gitignore
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/medical/discoveryserver/
+│       │   │   └── MedicalDiscoveryServerApplication.java
+│       │   └── resources/
+│       │       └── application.properties
+│       └── test/
+│           └── java/com/medical/discoveryserver/
+│               └── MedicalDiscoveryServerApplicationTests.java
+└── patient-service/                          # [Bài 2] Patient Management Service (Port 8081)
     ├── pom.xml
     ├── .gitignore
     └── src/
@@ -44,20 +55,22 @@ MD04_SS06_Bai2/
 
 ---
 
-### 3. Thực thể Patient (Entity)
-| Thuộc tính | Kiểu dữ liệu | Mô tả |
-| :--- | :--- | :--- |
-| `id` | `Long` | Khóa chính, tự sinh (Primary Key, Identity) |
-| `fullName` | `String` | Họ và tên bệnh nhân |
-| `dateOfBirth` | `LocalDate` | Ngày sinh bệnh nhân |
-| `gender` | `String` | Giới tính |
-| `phoneNumber` | `String` | Số điện thoại liên lạc |
-| `address` | `String` | Địa chỉ thường trú |
-| `medicalHistory`| `String` (TEXT) | Tiền sử bệnh lý (dị ứng, bệnh nền...) |
+## ⚙️ Cấu hình chi tiết các Service
 
----
+### 1. `medical-discovery-server` (`application.properties`)
+```properties
+server.port=8761
+spring.application.name=medical-discovery-server
 
-### 4. Cấu hình chi tiết (`application.properties`)
+# Server không tự đăng ký chính mình
+eureka.client.register-with-eureka=false
+eureka.client.fetch-registry=false
+
+# Tắt self-preservation để Server cập nhật trạng thái các service nhanh hơn
+eureka.server.enable-self-preservation=false
+```
+
+### 2. `patient-service` (`application.properties`)
 ```properties
 server.port=8081
 spring.application.name=patient-service
@@ -72,17 +85,25 @@ spring.jpa.hibernate.ddl-auto=update
 eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
 ```
 
-> **Lưu ý về mật khẩu PostgreSQL**:
-> Cấu hình mặc định theo bài thực hành là `123456`. Nếu PostgreSQL trên máy bạn sử dụng mật khẩu khác (ví dụ `admin`), hãy cập nhật dòng `spring.datasource.password` cho phù hợp.
-
 ---
 
-### 5. Chi tiết API nghiệp vụ
+## 📋 Chi tiết Entity Patient & REST API
 
-#### ➕ Thêm mới bệnh nhân
-- **Endpoint**: `POST /api/v1/patients`
-- **Headers**: `Content-Type: application/json`
-- **Request Body mẫu**:
+### Thực thể `Patient`
+- `id` (`Long`, Primary Key, GeneratedValue IDENTITY)
+- `fullName` (`String`): Họ và tên bệnh nhân
+- `dateOfBirth` (`LocalDate`): Ngày sinh bệnh nhân
+- `gender` (`String`): Giới tính
+- `phoneNumber` (`String`): Số điện thoại liên lạc
+- `address` (`String`): Địa chỉ thường trú
+- `medicalHistory` (`String` TEXT): Tiền sử bệnh lý (dị ứng thuốc, bệnh nền...)
+
+### API Endpoints
+- **Thêm mới bệnh nhân**: `POST /api/v1/patients`
+- **Lấy danh sách bệnh nhân**: `GET /api/v1/patients`
+- **Lấy chi tiết bệnh nhân theo ID**: `GET /api/v1/patients/{id}`
+
+#### Request Body mẫu (POST `/api/v1/patients`):
 ```json
 {
   "fullName": "Nguyễn Văn A",
@@ -94,7 +115,7 @@ eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
 }
 ```
 
-- **Response Mẫu (HTTP 201 Created)**:
+#### Response mẫu (HTTP 201 Created):
 ```json
 {
   "id": 1,
@@ -107,54 +128,29 @@ eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
 }
 ```
 
-#### 📋 Lấy danh sách bệnh nhân
-- **Endpoint**: `GET /api/v1/patients`
-- **Response**: Trả về mảng danh sách tất cả các bệnh nhân đã lưu.
-
 ---
 
-### 6. Hướng dẫn chạy & Kiểm thử
+## 🚀 Hướng dẫn khởi chạy toàn bộ hệ thống
 
-1. **Khởi động Eureka Server (Bài 1)**:
-   Chạy project `medical-discovery-server` tại port `8761`.
-
-2. **Đảm bảo database PostgreSQL đã tồn tại**:
-   ```sql
-   CREATE DATABASE patient_db;
-   ```
-
-3. **Khởi chạy `patient-service`**:
-   Tại thư mục `patient-service`:
-   ```bash
-   mvn spring-boot:run
-   ```
-
-4. **Kiểm tra Eureka Dashboard**:
-   Truy cập [http://localhost:8761](http://localhost:8761), tại mục **Instances currently registered with Eureka**, bạn sẽ thấy `PATIENT-SERVICE` với IP/port `8081` đã được đăng ký thành công!
-
-5. **Gọi API thêm mới bệnh nhân (cURL / Postman)**:
-   ```bash
-   curl -X POST http://localhost:8081/api/v1/patients \
-     -H "Content-Type: application/json" \
-     -d '{
-       "fullName": "Nguyễn Văn A",
-       "dateOfBirth": "1995-08-20",
-       "gender": "Nam",
-       "phoneNumber": "0987654321",
-       "address": "Hà Nội",
-       "medicalHistory": "Không có tiền sử bệnh lý"
-     }'
-   ```
-
----
-
-### 7. Hướng dẫn đẩy lên GitHub
-Tại thư mục `MD04_SS06_Bai2`:
+### Bước 1: Khởi động Service Registry (`medical-discovery-server`)
+Mở terminal tại thư mục `medical-discovery-server`:
 ```bash
-git init
-git add .
-git commit -m "feat: setup patient-service with PostgreSQL and Eureka Client"
-git branch -M main
-git remote add origin https://github.com/anvvhe190784/MD04_SS06_Bai2.git
-git push -u origin main
+mvn spring-boot:run
 ```
+Truy cập giao diện Eureka Dashboard tại: 👉 [http://localhost:8761](http://localhost:8761)
+
+### Bước 2: Đảm bảo database PostgreSQL đã tồn tại
+```sql
+CREATE DATABASE patient_db;
+```
+
+### Bước 3: Khởi động `patient-service`
+Mở một terminal khác tại thư mục `patient-service`:
+```bash
+mvn spring-boot:run
+```
+
+### Bước 4: Kiểm tra trạng thái kết nối
+1. F5 lại trang Dashboard [http://localhost:8761](http://localhost:8761).
+2. Tại bảng **Instances currently registered with Eureka**, bạn sẽ thấy `PATIENT-SERVICE` hiển thị trạng thái `UP (1) - localhost:patient-service:8081`.
+3. Dùng cURL / Postman gửi request POST đến `http://localhost:8081/api/v1/patients` để kiểm tra lưu bệnh nhân thành công vào DB.
